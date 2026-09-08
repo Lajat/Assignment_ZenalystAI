@@ -1,0 +1,142 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Improved single-VM layout (Phase 0 — "stop the bleeding" before AWS migration)
+# See README.md for the full reasoning and priority order.
+# ---------------------------------------------------------------------------
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true   # app <-> DB traffic never touches the public network
+
+volumes:
+  mongo_data:
+  postgres_data:
+  mongo_backups:
+  postgres_backups:
+
+services:
+  # --- Reverse proxy: single public entry point, TLS termination, rate limiting ---
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - frontend
+    depends_on:
+      - app1
+
+  # --- Application containers (example: 2 of the 7 shown, rest follow same pattern) ---
+  app1:
+    build: ./app
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  app2:
+    build: ./app
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      mongo:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # NOTE: app3..app7 omitted here for brevity — identical pattern.
+  # In the AWS target state these stop being docker-compose services
+  # entirely and become ECS tasks behind an ALB (see README "Target State").
+
+  # --- MongoDB: isolated network, resource capped, NOT publicly reachable ---
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - mongo_data:/data/db
+      - mongo_backups:/backups
+    networks:
+      - backend          # no ports: published — unreachable from outside the VM
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  # --- PostgreSQL: isolated network, resource capped, NOT publicly reachable ---
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  # --- Automated backup sidecar: runs nightly dumps to local volume + offsite ---
+  backup:
+    build: ./scripts
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - mongo_backups:/backups/mongo
+      - postgres_backups:/backups/postgres
+    networks:
+      - backend
+    depends_on:
+      - mongo
+      - postgres

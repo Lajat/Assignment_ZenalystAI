@@ -1,0 +1,14 @@
+{
+  "name": "zenalyst-app-placeholder",
+  "version": "1.0.0",
+  "description": "Placeholder app container standing in for the 7 real application services, so the stack is runnable end-to-end. See README.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mongodb": "^6.7.0",
+    "pg": "^8.11.5"
+  }
+}
