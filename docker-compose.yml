@@ -35,8 +35,11 @@ services:
     depends_on:
       - products1
       - products2
+      - products3
+      - products4
       - invoices1
       - invoices2
+      - invoices3
 
   # --- Products service: 2 replicas, backed by Postgres ---
   products1:
