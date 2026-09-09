@@ -1,0 +1,79 @@
+name: Build, Test, Deploy
+
+on:
+  push:
+    branches: [product_invoice_app]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy env template
+        run: cp .env.example .env
+
+      - name: Build and start stack
+        run: docker compose up --build -d
+
+      - name: Wait for services to report healthy
+        run: |
+          echo "Waiting for products/invoices services to pass health checks..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/products > /dev/null && \
+               curl -sf http://localhost:8080/api/invoices > /dev/null; then
+              echo "Services healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services did not become healthy in time."
+          docker compose logs
+          exit 1
+
+      - name: Run products-service tests
+        working-directory: ./products-service
+        run: node test.js
+        env:
+          TEST_BASE_URL: http://localhost:8080/api/products
+
+      - name: Run invoice-service tests
+        working-directory: ./invoice-service
+        run: node test.js
+        env:
+          TEST_BASE_URL: http://localhost:8080/api/invoices
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Only runs if build-and-test passed — this is the core of the "no bad
+    # deploy reaches the VM" fix for risk #3 in the README.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VM
+        run: |
+          echo "Placeholder: SSH to the VM, pull latest, docker compose up --build -d"
+          echo "Real implementation needs VM host/SSH key as repo secrets — left"
+          echo "as a stub here since there's no real target VM in this take-home."
+
+      - name: Post-deploy health check
+        run: |
+          echo "Placeholder: curl the deployed /health endpoint."
+          echo "If this step fails, the rollback job below runs automatically."
+
+  rollback:
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll back to previous deploy
+        run: |
+          echo "Placeholder: re-run 'docker compose up -d' against the"
+          echo "previous known-good image tag / compose file on the VM."
+          echo "This is what turns a bad deploy from an outage into a"
+          echo "same-minute recovery — see README risk #3."

@@ -1,7 +1,9 @@
 version: "3.9"
 
 # ---------------------------------------------------------------------------
-# Improved single-VM layout (Phase 0 — "stop the bleeding" before AWS migration)
+# Phase 0: hardened single-VM layout with two real demo services
+# (products / Postgres, invoices / MongoDB), each running 2 replicas
+# behind nginx to demonstrate load balancing + routing live.
 # See README.md for the full reasoning and priority order.
 # ---------------------------------------------------------------------------
 
@@ -10,7 +12,7 @@ networks:
     driver: bridge
   backend:
     driver: bridge
-    internal: true   # app <-> DB traffic never touches the public network
+    internal: true   # DB traffic never touches the public network
 
 volumes:
   mongo_data:
@@ -19,29 +21,108 @@ volumes:
   postgres_backups:
 
 services:
-  # --- Reverse proxy: single public entry point, TLS termination, rate limiting ---
+  # --- Reverse proxy + load balancer + static UI host ---
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
     ports:
-      - "443:443"
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./ui:/usr/share/nginx/html:ro
     networks:
       - frontend
     depends_on:
-      - app1
+      - products1
+      - products2
+      - invoices1
+      - invoices2
 
-  # --- Application containers (example: 2 of the 7 shown, rest follow same pattern) ---
-  app1:
-    build: ./app
+  # --- Products service: 2 replicas, backed by Postgres ---
+  products1:
+    build: ./products-service
     restart: unless-stopped
     env_file: .env
-    networks:
-      - frontend
-      - backend
+    environment:
+      - APP_NAME=container-products1
+    networks: [frontend, backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  products2:
+    build: ./products-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_NAME=container-products2
+    networks: [frontend, backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  products3:
+    build: ./products-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_NAME=container-products3
+    networks: [frontend, backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  products4:
+    build: ./products-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_NAME=container-products4
+    networks: [frontend, backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  # --- Invoice service: 2 replicas, backed by MongoDB ---
+  invoices1:
+    build: ./invoice-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_NAME=container-invoices1
+    networks: [frontend, backend]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -50,21 +131,17 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
     deploy:
       resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
+        limits: { cpus: "0.5", memory: 256M }
 
-  app2:
-    build: ./app
+  invoices2:
+    build: ./invoice-service
     restart: unless-stopped
     env_file: .env
-    networks:
-      - frontend
-      - backend
+    environment:
+      - APP_NAME=container-invoices2
+    networks: [frontend, backend]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -73,19 +150,30 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      postgres:
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  invoices3:
+    build: ./invoice-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_NAME=container-invoices3
+    networks: [frontend, backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      mongo:
         condition: service_healthy
     deploy:
       resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
+        limits: { cpus: "0.5", memory: 256M }
 
-  # NOTE: app3..app7 omitted here for brevity — identical pattern.
-  # In the AWS target state these stop being docker-compose services
-  # entirely and become ECS tasks behind an ALB (see README "Target State").
-
-  # --- MongoDB: isolated network, resource capped, NOT publicly reachable ---
+  # --- MongoDB: isolated network, not publicly reachable ---
   mongo:
     image: mongo:7
     restart: unless-stopped
@@ -93,8 +181,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_backups:/backups
-    networks:
-      - backend          # no ports: published — unreachable from outside the VM
+    networks: [backend]
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -102,11 +189,9 @@ services:
       retries: 3
     deploy:
       resources:
-        limits:
-          cpus: "1.0"
-          memory: 1G
+        limits: { cpus: "1.0", memory: 1G }
 
-  # --- PostgreSQL: isolated network, resource capped, NOT publicly reachable ---
+  # --- PostgreSQL: isolated network, not publicly reachable ---
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -114,8 +199,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - postgres_backups:/backups
-    networks:
-      - backend
+    networks: [backend]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 30s
@@ -123,11 +207,9 @@ services:
       retries: 3
     deploy:
       resources:
-        limits:
-          cpus: "1.0"
-          memory: 1G
+        limits: { cpus: "1.0", memory: 1G }
 
-  # --- Automated backup sidecar: runs nightly dumps to local volume + offsite ---
+  # --- Automated nightly backups for both databases ---
   backup:
     build: ./scripts
     restart: unless-stopped
@@ -135,8 +217,7 @@ services:
     volumes:
       - mongo_backups:/backups/mongo
       - postgres_backups:/backups/postgres
-    networks:
-      - backend
+    networks: [backend]
     depends_on:
       - mongo
       - postgres
