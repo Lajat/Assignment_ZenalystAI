@@ -56,33 +56,110 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  deploy:
+  # ---------------------------------------------------------
+  # BETA
+  # PR to main -> deploy the feature branch to beta
+  # ---------------------------------------------------------
+  deploy-beta:
     needs: build-and-test
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
-    # Only runs if build-and-test passed — this is the core of the "no bad
-    # deploy reaches the VM" fix for risk #3 in the README.
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Deploy to VM
+      - name: Deploy to Beta VM
         run: |
-          echo "Placeholder: SSH to the VM, pull latest, docker compose up --build -d"
+          echo "Placeholder: SSH to the Beta VM, pull feature branch, docker compose up --build -d"
           echo "Real implementation needs VM host/SSH key as repo secrets — left"
           echo "as a stub here since there's no real target VM in this take-home."
 
-      - name: Post-deploy health check
+      - name: Post-deploy Beta health check
         run: |
-          echo "Placeholder: curl the deployed /health endpoint."
-          echo "If this step fails, the rollback job below runs automatically."
+          echo "Placeholder: curl the deployed Beta /health endpoint."
+          echo "If this step fails, the Beta rollback job below runs automatically."
 
-  rollback:
-    needs: deploy
+  deploy-beta-rollback:
+    needs: deploy-beta
     if: failure()
     runs-on: ubuntu-latest
     steps:
-      - name: Roll back to previous deploy
+      - name: Roll back Beta
         run: |
           echo "Placeholder: re-run 'docker compose up -d' against the"
-          echo "previous known-good image tag / compose file on the VM."
+          echo "previous known-good image tag / compose file on the Beta VM."
+          echo "This is what turns a bad deploy from an outage into a"
+          echo "same-minute recovery — see README risk #3."
+
+  # ---------------------------------------------------------
+  # QA
+  # Push to main -> deploy main to QA
+  # ---------------------------------------------------------
+  deploy-qa:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Deploy to QA VM
+        run: |
+          echo "Placeholder: SSH to the QA VM, pull latest main, docker compose up --build -d"
+          echo "Real implementation needs VM host/SSH key as repo secrets — left"
+          echo "as a stub here since there's no real target VM in this take-home."
+
+      - name: Post-deploy QA health check
+        run: |
+          echo "Placeholder: curl the deployed QA /health endpoint."
+          echo "If this step fails, the QA rollback job below runs automatically."
+
+  deploy-qa-rollback:
+    needs: deploy-qa
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll back QA
+        run: |
+          echo "Placeholder: re-run 'docker compose up -d' against the"
+          echo "previous known-good image tag / compose file on the QA VM."
+          echo "This is what turns a bad deploy from an outage into a"
+          echo "same-minute recovery — see README risk #3."
+
+  # ---------------------------------------------------------
+  # PROD
+  # Release -> deploy the released version to production
+  # ---------------------------------------------------------
+  deploy-prod:
+    needs: build-and-test
+    if: github.event_name == 'release' && (github.event.action == 'created' || github.event.action == 'published')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Deploy to Production VM
+        run: |
+          echo "Placeholder: SSH to the Production VM, pull release, docker compose up --build -d"
+          echo "Real implementation needs VM host/SSH key as repo secrets — left"
+          echo "as a stub here since there's no real target VM in this take-home."
+
+      - name: Post-deploy Production health check
+        run: |
+          echo "Placeholder: curl the deployed Production /health endpoint."
+          echo "If this step fails, the Production rollback job below runs automatically."
+
+  deploy-prod-rollback:
+    needs: deploy-prod
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll back Production
+        run: |
+          echo "Placeholder: re-run 'docker compose up -d' against the"
+          echo "previous known-good image tag / compose file on the Production VM."
           echo "This is what turns a bad deploy from an outage into a"
           echo "same-minute recovery — see README risk #3."

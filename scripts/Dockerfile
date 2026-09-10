@@ -14,7 +14,7 @@ COPY backup.sh /usr/local/bin/backup.sh
 RUN sed -i 's/\r$//' /usr/local/bin/backup.sh
 RUN chmod +x /usr/local/bin/backup.sh
 
-# Every 5 minute for testing — switch to "0 2 * * *" (nightly at 2am) once confirmed working.
+# Every 5 minute for demo — switch to "0 2 * * *" (nightly at 2am) for production.
 RUN echo "*/5 * * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1" > /etc/crontabs/root
 
 ENTRYPOINT ["/sbin/tini", "--"]
