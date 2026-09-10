@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 COPY package.json ./
 RUN npm install --production
 
-COPY index.js ./
+COPY index.js routes.js controller.js db.js ./
 
 # curl needed for the docker-compose healthcheck
 RUN apk add --no-cache curl
