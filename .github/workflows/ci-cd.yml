@@ -2,13 +2,20 @@ name: Build, Test, Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [feature/architecture-hardening]
+  # pull_request:
+  #   branches: [main]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
       - name: Copy env template
         run: cp .env.example .env
@@ -19,13 +26,13 @@ jobs:
       - name: Wait for services to report healthy
         run: |
           echo "Waiting for products/invoices services to pass health checks..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 90); do
             if curl -sf http://localhost:8080/api/products > /dev/null && \
                curl -sf http://localhost:8080/api/invoices > /dev/null; then
               echo "Services healthy."
               exit 0
             fi
-            sleep 2
+            sleep 3
           done
           echo "Services did not become healthy in time."
           docker compose logs
