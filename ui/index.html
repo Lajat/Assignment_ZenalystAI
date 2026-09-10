@@ -1,222 +1,354 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Zenalyst — Load Balancing Demo</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
-  h1 { font-size: 1.4rem; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #e5e5e5; }
-  .tab {
-    padding: 10px 20px;
-    cursor: pointer;
-    background: transparent;
-    color: #666;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    transition: color 0.15s ease;
-  }
-  .tab:hover { color: #1a1a1a; }
-  .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
-  .panel { display: none; }
-  .panel.active { display: block; }
-  form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px; }
-  button { padding: 8px 16px; border: none; border-radius: 4px; background: #1a1a1a; color: white; cursor: pointer; }
-  button.danger { background: #c0392b; }
-  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
-  .instance-tag { font-family: monospace; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: #eef; color: #33c; }
-  .empty { color: #888; font-style: italic; }
-  .replica-strip { display: flex; gap: 8px; margin: 4px 0 20px; flex-wrap: wrap; }
-  .replica-box {
-    font-family: monospace;
-    font-size: 0.8rem;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    background: #fafafa;
-    color: #999;
-    transition: all 0.15s ease;
-  }
-  .replica-box.hit {
-    background: #1a1a1a;
-    color: white;
-    border-color: #1a1a1a;
-  }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Zenalyst — Load Balancing Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #1a1a1a;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 24px;
+        border-bottom: 2px solid #e5e5e5;
+      }
+      .tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        background: transparent;
+        color: #666;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        transition: color 0.15s ease;
+      }
+      .tab:hover {
+        color: #1a1a1a;
+      }
+      .tab.active {
+        color: #1a1a1a;
+        border-bottom-color: #1a1a1a;
+      }
+      .panel {
+        display: none;
+      }
+      .panel.active {
+        display: block;
+      }
+      form {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+      input {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        flex: 1;
+        min-width: 120px;
+      }
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        background: #1a1a1a;
+        color: white;
+        cursor: pointer;
+      }
+      button.danger {
+        background: #c0392b;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        font-size: 0.9rem;
+      }
+      .instance-tag {
+        font-family: monospace;
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #eef;
+        color: #33c;
+      }
+      .empty {
+        color: #888;
+        font-style: italic;
+      }
+      .replica-strip {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0 20px;
+        flex-wrap: wrap;
+      }
+      .replica-box {
+        font-family: monospace;
+        font-size: 0.8rem;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        background: #fafafa;
+        color: #999;
+        transition: all 0.15s ease;
+      }
+      .replica-box.hit {
+        background: #1a1a1a;
+        color: white;
+        border-color: #1a1a1a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Zenalyst AI — Products &amp; Invoices Demo</h1>
+    <p>
+      Products runs 4 replicas, Invoices runs 3 — different counts on purpose,
+      so you can see nginx load-balance each independently. The strip above each
+      table shows every known replica; the one that served your most recent
+      request lights up. Refresh a few times and watch it move.
+    </p>
 
-<h1>Zenalyst — Products &amp; Invoices Demo</h1>
-<p>Products runs 4 replicas, Invoices runs 3 — different counts on purpose, so you can see nginx load-balance each independently. The strip above each table shows every known replica; the one that served your most recent request lights up. Refresh a few times and watch it move.</p>
+    <div class="tabs">
+      <div class="tab active" data-tab="products">Products</div>
+      <div class="tab" data-tab="invoices">Invoices</div>
+    </div>
 
-<div class="tabs">
-  <div class="tab active" data-tab="products">Products</div>
-  <div class="tab" data-tab="invoices">Invoices</div>
-</div>
+    <div class="panel active" id="panel-products">
+      <div class="replica-strip" id="products-replica-strip"></div>
+      <form id="form-products">
+        <input
+          type="text"
+          id="product-name"
+          placeholder="Product name"
+          required
+        />
+        <input
+          type="number"
+          id="product-price"
+          placeholder="Price"
+          step="0.01"
+          required
+        />
+        <button type="submit">Add Product</button>
+      </form>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Served By</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+      </table>
+    </div>
 
-<div class="panel active" id="panel-products">
-  <div class="replica-strip" id="products-replica-strip"></div>
-  <form id="form-products">
-    <input type="text" id="product-name" placeholder="Product name" required />
-    <input type="number" id="product-price" placeholder="Price" step="0.01" required />
-    <button type="submit">Add Product</button>
-  </form>
-  <table>
-    <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Served By</th><th></th></tr></thead>
-    <tbody id="products-body"></tbody>
-  </table>
-</div>
+    <div class="panel" id="panel-invoices">
+      <div class="replica-strip" id="invoices-replica-strip"></div>
+      <form id="form-invoices">
+        <input
+          type="text"
+          id="invoice-customer"
+          placeholder="Customer name"
+          required
+        />
+        <input
+          type="number"
+          id="invoice-amount"
+          placeholder="Amount"
+          step="0.01"
+          required
+        />
+        <button type="submit">Add Invoice</button>
+      </form>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Served By</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="invoices-body"></tbody>
+      </table>
+    </div>
 
-<div class="panel" id="panel-invoices">
-  <div class="replica-strip" id="invoices-replica-strip"></div>
-  <form id="form-invoices">
-    <input type="text" id="invoice-customer" placeholder="Customer name" required />
-    <input type="number" id="invoice-amount" placeholder="Amount" step="0.01" required />
-    <button type="submit">Add Invoice</button>
-  </form>
-  <table>
-    <thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Served By</th><th></th></tr></thead>
-    <tbody id="invoices-body"></tbody>
-  </table>
-</div>
+    <script>
+      const API_BASE = ""; // same-origin, nginx routes /api/*
 
-<script>
-  const API_BASE = ""; // same-origin, nginx routes /api/*
+      // Known replica names — must match INSTANCE_NAME in docker-compose.yml.
+      // Kept as a static list because a single API response can only tell us
+      // which ONE replica served that request, not the status of all of them —
+      // this list is what we render dots for, and "hit" state accumulates
+      // as requests come back from each one.
+      const PRODUCTS_REPLICAS = [
+        "products1",
+        "products2",
+        "products3",
+        "products4",
+      ];
+      const INVOICES_REPLICAS = ["invoices1", "invoices2", "invoices3"];
 
-  // Known replica names — must match INSTANCE_NAME in docker-compose.yml.
-  // Kept as a static list because a single API response can only tell us
-  // which ONE replica served that request, not the status of all of them —
-  // this list is what we render dots for, and "hit" state accumulates
-  // as requests come back from each one.
-  const PRODUCTS_REPLICAS = ["products1", "products2", "products3", "products4"];
-  const INVOICES_REPLICAS = ["invoices1", "invoices2", "invoices3"];
+      function renderReplicaStrip(containerId, replicaNames) {
+        const el = document.getElementById(containerId);
+        el.innerHTML = replicaNames
+          .map(
+            (name) =>
+              `<span class="replica-box" data-replica="${name}">${name}</span>`,
+          )
+          .join("");
+      }
 
-  function renderReplicaStrip(containerId, replicaNames) {
-    const el = document.getElementById(containerId);
-    el.innerHTML = replicaNames
-      .map(name => `<span class="replica-box" data-replica="${name}">${name}</span>`)
-      .join("");
-  }
+      function markReplicaHit(containerId, replicaNames, servedBy) {
+        const el = document.getElementById(containerId);
+        replicaNames.forEach((name) => {
+          const box = el.querySelector(`[data-replica="${name}"]`);
+          if (box) box.classList.toggle("hit", name === servedBy);
+        });
+      }
 
-  function markReplicaHit(containerId, replicaNames, servedBy) {
-    const el = document.getElementById(containerId);
-    replicaNames.forEach(name => {
-      const box = el.querySelector(`[data-replica="${name}"]`);
-      if (box) box.classList.toggle("hit", name === servedBy);
-    });
-  }
+      renderReplicaStrip("products-replica-strip", PRODUCTS_REPLICAS);
+      renderReplicaStrip("invoices-replica-strip", INVOICES_REPLICAS);
 
-  renderReplicaStrip("products-replica-strip", PRODUCTS_REPLICAS);
-  renderReplicaStrip("invoices-replica-strip", INVOICES_REPLICAS);
+      // --- Tab switching, persisted via URL hash so refresh doesn't reset it ---
+      function activateTab(tabName) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) =>
+            t.classList.toggle("active", t.dataset.tab === tabName),
+          );
+        document
+          .querySelectorAll(".panel")
+          .forEach((p) =>
+            p.classList.toggle("active", p.id === `panel-${tabName}`),
+          );
+      }
 
-  // --- Tab switching, persisted via URL hash so refresh doesn't reset it ---
-  function activateTab(tabName) {
-    document.querySelectorAll(".tab").forEach(t =>
-      t.classList.toggle("active", t.dataset.tab === tabName)
-    );
-    document.querySelectorAll(".panel").forEach(p =>
-      p.classList.toggle("active", p.id === `panel-${tabName}`)
-    );
-  }
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          window.location.hash = tab.dataset.tab;
+        });
+      });
 
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      window.location.hash = tab.dataset.tab;
-    });
-  });
+      window.addEventListener("hashchange", () => {
+        const tabName = window.location.hash.replace("#", "") || "products";
+        activateTab(tabName);
+      });
 
-  window.addEventListener("hashchange", () => {
-    const tabName = window.location.hash.replace("#", "") || "products";
-    activateTab(tabName);
-  });
+      // Apply whatever tab is in the URL on initial load (defaults to products)
+      activateTab(window.location.hash.replace("#", "") || "products");
 
-  // Apply whatever tab is in the URL on initial load (defaults to products)
-  activateTab(window.location.hash.replace("#", "") || "products");
-
-  // --- Products ---
-  async function loadProducts() {
-    const res = await fetch(`${API_BASE}/api/products`);
-    const data = await res.json();
-    markReplicaHit("products-replica-strip", PRODUCTS_REPLICAS, data.servedBy);
-    const body = document.getElementById("products-body");
-    body.innerHTML = "";
-    if (!data.items || data.items.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">No products yet</td></tr>`;
-      return;
-    }
-    data.items.forEach(p => {
-      body.innerHTML += `<tr>
+      // --- Products ---
+      async function loadProducts() {
+        const res = await fetch(`${API_BASE}/api/products`);
+        const data = await res.json();
+        markReplicaHit(
+          "products-replica-strip",
+          PRODUCTS_REPLICAS,
+          data.servedBy,
+        );
+        const body = document.getElementById("products-body");
+        body.innerHTML = "";
+        if (!data.items || data.items.length === 0) {
+          body.innerHTML = `<tr><td colspan="5" class="empty">No products yet</td></tr>`;
+          return;
+        }
+        data.items.forEach((p) => {
+          body.innerHTML += `<tr>
         <td>${p.id}</td><td>${p.name}</td><td>$${p.price}</td>
         <td><span class="instance-tag">${data.servedBy}</span></td>
         <td><button class="danger" onclick="deleteProduct(${p.id})">Delete</button></td>
       </tr>`;
-    });
-  }
+        });
+      }
 
-  document.getElementById("form-products").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("product-name").value;
-    const price = document.getElementById("product-price").value;
-    await fetch(`${API_BASE}/api/products`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, price: parseFloat(price) }),
-    });
-    e.target.reset();
-    loadProducts();
-  });
+      document
+        .getElementById("form-products")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const name = document.getElementById("product-name").value;
+          const price = document.getElementById("product-price").value;
+          await fetch(`${API_BASE}/api/products`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, price: parseFloat(price) }),
+          });
+          e.target.reset();
+          loadProducts();
+        });
 
-  async function deleteProduct(id) {
-    await fetch(`${API_BASE}/api/products/${id}`, { method: "DELETE" });
-    loadProducts();
-  }
+      async function deleteProduct(id) {
+        await fetch(`${API_BASE}/api/products/${id}`, { method: "DELETE" });
+        loadProducts();
+      }
 
-  // --- Invoices ---
-  async function loadInvoices() {
-    const res = await fetch(`${API_BASE}/api/invoices`);
-    const data = await res.json();
-    markReplicaHit("invoices-replica-strip", INVOICES_REPLICAS, data.servedBy);
-    const body = document.getElementById("invoices-body");
-    body.innerHTML = "";
-    if (!data.items || data.items.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">No invoices yet</td></tr>`;
-      return;
-    }
-    data.items.forEach(inv => {
-      body.innerHTML += `<tr>
+      // --- Invoices ---
+      async function loadInvoices() {
+        const res = await fetch(`${API_BASE}/api/invoices`);
+        const data = await res.json();
+        markReplicaHit(
+          "invoices-replica-strip",
+          INVOICES_REPLICAS,
+          data.servedBy,
+        );
+        const body = document.getElementById("invoices-body");
+        body.innerHTML = "";
+        if (!data.items || data.items.length === 0) {
+          body.innerHTML = `<tr><td colspan="5" class="empty">No invoices yet</td></tr>`;
+          return;
+        }
+        data.items.forEach((inv) => {
+          body.innerHTML += `<tr>
         <td>${inv._id}</td><td>${inv.customer}</td><td>$${inv.amount}</td>
         <td><span class="instance-tag">${data.servedBy}</span></td>
         <td><button class="danger" onclick="deleteInvoice('${inv._id}')">Delete</button></td>
       </tr>`;
-    });
-  }
+        });
+      }
 
-  document.getElementById("form-invoices").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const customer = document.getElementById("invoice-customer").value;
-    const amount = document.getElementById("invoice-amount").value;
-    await fetch(`${API_BASE}/api/invoices`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customer, amount: parseFloat(amount) }),
-    });
-    e.target.reset();
-    loadInvoices();
-  });
+      document
+        .getElementById("form-invoices")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const customer = document.getElementById("invoice-customer").value;
+          const amount = document.getElementById("invoice-amount").value;
+          await fetch(`${API_BASE}/api/invoices`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ customer, amount: parseFloat(amount) }),
+          });
+          e.target.reset();
+          loadInvoices();
+        });
 
-  async function deleteInvoice(id) {
-    await fetch(`${API_BASE}/api/invoices/${id}`, { method: "DELETE" });
-    loadInvoices();
-  }
+      async function deleteInvoice(id) {
+        await fetch(`${API_BASE}/api/invoices/${id}`, { method: "DELETE" });
+        loadInvoices();
+      }
 
-  loadProducts();
-  loadInvoices();
-</script>
-
-</body>
+      loadProducts();
+      loadInvoices();
+    </script>
+  </body>
 </html>

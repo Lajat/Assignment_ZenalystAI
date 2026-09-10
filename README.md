@@ -226,6 +226,9 @@ asked for reasoning over a perfect-system diagram:
   rolling deploys with automatic rollback (risk #3), and true horizontal
   scaling / no single point of failure at the VM level (risk #5).
 - **CloudWatch (or equivalent) for logs/metrics/alarms** — risk #6.
+- **Monitoring & alerting** — set up CloudWatch (or equivalent) dashboards and alerts for 
+  service health, errors, latency, resource usage, database health, and deployment failures, with notifications to the appropriate channel.
+
 
 ## Assumptions
 
